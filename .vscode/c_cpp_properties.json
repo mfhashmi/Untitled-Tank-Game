@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:\\WinAVR-20100110\\avr\\include",
+                "C:\\WinAVR-20100110\\lib\\gcc\\avr\\5.4.0\\include"
+
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "__AVR_AT90USB1286__"
+            ],
+            "compilerPath": "E:\\Haskell\\8.4.3\\mingw\\bin\\gcc.exe",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "clang-x64"
+        }
+    ],
+    "version": 4
+}
