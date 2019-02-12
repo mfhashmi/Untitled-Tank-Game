@@ -2,13 +2,14 @@
 #include <avr/interrupt.h>
 #include <util/delay.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "lcd.h"
 
 bulletColour = RED;
 playerColour = BLUE;
 turretColour = 0x8410;
 
-struct bullet{
+struct object{
     char direction;
     int16_t xPos, oldXPos;
     int16_t yPos, oldYPos;
@@ -21,7 +22,7 @@ volatile uint8_t turretPos = 0; /*starting turret direction (up)*/
 volatile rectangle turrRect;
 #define maxBullets 3
 volatile uint8_t currentBullet = 0;
-volatile struct bullet bullets[maxBullets] = {{'-', 0, 0, 0, 0}, {'-', 0, 0, 0, 0}, {'-', 0, 0, 0, 0}};
+volatile struct object bullets[maxBullets] = {{'-', 0, 0, 0, 0}, {'-', 0, 0, 0, 0}, {'-', 0, 0, 0, 0}};
 uint8_t redraw =1;
 volatile uint16_t delta;
 
@@ -49,15 +50,14 @@ void init(){
     EICRB = _BV(ISC70) | /*_BV(ISC40) | */_BV(ISC60); /*enable external level interrupt pin e 7 (switch)*/
     
 
-    TCCR0A = _BV(WGM01); /*set to clear timer on match mode?*/
+    TCCR0A = _BV(WGM01); /*set to clear timer on match mode*/
     TCCR0B = 0x03; /*enable clock with clkIO/64 prescaling setting*/
     OCR0A = 0x7C; /*set timer a compare value to 124 (when timer hits 124, interrupt is fired)*/
     TIMSK0 =  _BV(OCIE0A); /*enable timer interrupt (0x02 or 0b00000010)*/
  
     
 }
-
-
+uint8_t timerMatch=10;
 
 /*screen interrupt / main game loop*/
 ISR(INT6_vect){
@@ -66,10 +66,17 @@ ISR(INT6_vect){
     if(val>3) val=0;
     turretPos=val;
     
-
     movePlayer();
 
     moveBullets();
+
+    if(timerMatch){
+        timerMatch--;
+    }else{
+        spawnEnemy();
+        moveEnemies();
+        timerMatch=4;
+    }
 
 }
 
@@ -82,9 +89,21 @@ ISR(INT7_vect){
 void main(){
     
     init();
-    sei();
     init_lcd();
+    /*Start menu goes here*/
+    display_string("Start menu test.");
+    display_string_xy("Press switch to start.",40,160);
+    while(PINE & _BV(PE7)){
+    }
+    srand(TCNT0); /*seeding rng with counter value (happens when user presses button so slightly more random)*/
+    clear_screen();
+    _delay_ms(500);
+    sei();
+
     /*set_frame_rate_hz(61);*/
+
+    /*loop keep game running*/
+    /*TODO replace 1 with live system*/
     while (1){
         
     }
@@ -260,6 +279,143 @@ void moveBullets(){
             
             fill_rectangle(oldBulletPos, BLACK);
             if(bullets[i].direction!='-') fill_rectangle(currentBulletPos, bulletColour);
+        }
+    }
+}
+
+uint8_t enemiesOnScreen=0;
+#define maxEnemies 3
+#define enemySize 11
+
+volatile struct object enemies[maxEnemies] = {{'-', 0, 0, 0, 0},{'-', 0, 0, 0, 0},{'-', 0, 0, 0, 0}};
+
+/*Spawn new enemy if there are fewer than max enemies on screen atm*/
+void spawnEnemy(){
+    uint8_t currentEnemy=0;
+    if(enemiesOnScreen<maxEnemies){
+        for(currentEnemy; currentEnemy<=maxEnemies; currentEnemy++){
+            if(enemies[currentEnemy].direction=='-'){ 
+                char dir;
+                uint8_t xPos;
+                uint16_t yPos;
+                uint8_t enemyType = rand() % 5;
+                switch (enemyType)
+                {
+                    case 0:
+                        dir = 'R';
+                        xPos=0;
+                        yPos=(rand() % 280) +10;
+                        break;
+                    case 1:
+                        dir = 'L';
+                        xPos=230;
+                        yPos=(rand() % 280) +10;
+                        break;
+                    case 2:
+                        dir = 'U';
+                        xPos=(rand() % 210) +10;
+                        yPos=290;
+                        break;
+                    case 3:
+                        dir = 'D';
+                        xPos=(rand() % 210) +10;
+                        yPos=0;
+                        break;
+                    case 4:
+                        dir = 'F';
+                        uint8_t side = rand() % 4;
+                        switch(side){
+                            case 0: /*come from left*/
+                                xPos=0;
+                                yPos=(rand() % 280) +10;
+                                break;
+                            case 1: /*come from right*/
+                                xPos=230;
+                                yPos=(rand() % 280) +10;
+                                break;
+                            case 2: /*come from bottom*/
+                                xPos=(rand() % 210) +10;
+                                yPos=290;
+                                break;
+                            case 3: /*come from top*/
+                                xPos=(rand() % 210) +10;
+                                yPos=0;
+                                break;
+                        }
+                        break;
+                }
+                enemies[currentEnemy].direction=dir; 
+                enemies[currentEnemy].xPos = xPos;
+                enemies[currentEnemy].oldXPos = xPos;
+                enemies[currentEnemy].yPos = yPos;
+                enemies[currentEnemy].oldYPos = yPos;
+                enemiesOnScreen++;
+            }
+        }
+    }
+}
+
+void moveEnemies(){ 
+    int i=0;
+    for(i; i<maxEnemies; i++){
+        if(enemies[i].direction!='-'){
+            enemies[i].oldXPos=enemies[i].xPos;
+            enemies[i].oldYPos=enemies[i].yPos;
+            switch (enemies[i].direction)
+            {
+                case 'U':
+                    enemies[i].yPos-=2;
+                    if(enemies[i].yPos+enemySize<=0){
+                        enemies[i].direction='-';
+                        rectangle rect = {enemies[i].xPos, enemies[i].xPos+enemySize, enemies[i].yPos, enemies[i].yPos+enemySize};
+                        fill_rectangle(rect, BLACK);
+                        enemiesOnScreen--;
+                    }
+                    break;
+                case 'L':
+                    enemies[i].xPos-=2;
+                    if(enemies[i].xPos+enemySize<=0){
+                        enemies[i].direction='-';
+                        rectangle rect = {enemies[i].xPos, enemies[i].xPos+enemySize, enemies[i].yPos, enemies[i].yPos+enemySize};
+                        fill_rectangle(rect, BLACK);
+                        enemiesOnScreen--;
+                    }
+                    break;
+                case 'D':
+                    enemies[i].yPos+=2;
+                    if(enemies[i].yPos>=320){
+                        enemies[i].direction='-';
+                        rectangle rect = {enemies[i].xPos, enemies[i].xPos+enemySize, enemies[i].yPos, enemies[i].yPos+enemySize};
+                        fill_rectangle(rect, BLACK);
+                        enemiesOnScreen--;
+                    }
+                    break;
+                case 'R':
+                    enemies[i].xPos+=2;
+                    if(enemies[i].xPos>=240){
+                        enemies[i].direction='-';
+                        rectangle rect = {enemies[i].xPos, enemies[i].xPos+enemySize, enemies[i].yPos, enemies[i].yPos+enemySize};
+                        fill_rectangle(rect, BLACK);
+                        enemiesOnScreen--;
+                    }
+                    break;
+                case 'F':
+                    if(enemies[i].xPos>playerX){
+                        enemies[i].xPos--;
+                    }else if(enemies[i].xPos<playerX){
+                        enemies[i].xPos++;
+                    }
+                    if(enemies[i].yPos>playerY){
+                        enemies[i].yPos--;
+                    }else if(enemies[i].yPos<playerY){
+                        enemies[i].yPos++;
+                    }
+            }
+            rectangle currentEnemyPos = {enemies[i].xPos, enemies[i].xPos+enemySize, enemies[i].yPos, enemies[i].yPos+enemySize};
+            rectangle oldEnemyPos = {enemies[i].oldXPos, enemies[i].oldXPos+enemySize, enemies[i].oldYPos, enemies[i].oldYPos+enemySize};
+            
+            fill_rectangle(oldEnemyPos, BLACK);
+            if(enemies[i].direction!='-') fill_rectangle(currentEnemyPos, WHITE);
         }
     }
 }
