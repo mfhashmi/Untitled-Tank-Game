@@ -4,20 +4,27 @@
 #include <stdio.h>
 #include "lcd.h"
 
-/*volatile uint8_t direction = 1; //dont know what this line does, commented out for now and everything seems to still be working*/
-
-volatile uint16_t playerY = 150;
-volatile uint8_t playerX = 100;
-#define playerSize 17
-volatile rectangle prev = {100, (100+playerSize), 150, (150+playerSize)};
-volatile rectangle curr = {100, (100+playerSize), 150, (150+playerSize)};
-volatile uint8_t turretPos = 0;
+bulletColour = RED;
+playerColour = BLUE;
+turretColour = 0x8410;
 
 struct bullet{
     char direction;
     int16_t xPos, oldXPos;
     int16_t yPos, oldYPos;
 };
+
+volatile uint16_t playerY = 150;
+volatile uint16_t playerX = 100; /*player starting x and y pos*/
+#define playerSize 17
+volatile uint8_t turretPos = 0; /*starting turret direction (up)*/
+volatile rectangle turrRect;
+#define maxBullets 3
+volatile uint8_t currentBullet = 0;
+volatile struct bullet bullets[maxBullets] = {{'-', 0, 0, 0, 0}, {'-', 0, 0, 0, 0}, {'-', 0, 0, 0, 0}};
+uint8_t redraw =1;
+volatile uint16_t delta;
+
 
 /*function definitions*/
 
@@ -50,30 +57,20 @@ void init(){
     
 }
 
-volatile uint16_t delta;
-volatile rectangle turrRect;
 
-#define maxBullets 3
-volatile uint8_t currentBullet = 0;
-volatile struct bullet bullets[maxBullets] = {{'-', 0, 0, 0, 0}, {'-', 0, 0, 0, 0}, {'-', 0, 0, 0, 0}};
 
-/*screen interrupt: all game logic happens here*/
+/*screen interrupt / main game loop*/
 ISR(INT6_vect){
-    movePlayer();
-
     int8_t val = turretPos + enc_delta();
     if(val<0) val=3;
     if(val>3) val=0;
     turretPos=val;
+    
 
-    moveTurret(turretPos);
-
-    fill_rectangle(prev, BLACK);
-    fill_rectangle(curr, BLUE);
+    movePlayer();
 
     moveBullets();
 
-    fill_rectangle(turrRect, 0x8410);
 }
 
 /*switch interrupt for creating bullets*/
@@ -97,21 +94,21 @@ void main(){
 /*function scans arrow inputs and moves player pos accordingly*/
 void movePlayer(){
     /*board will be held sideways so north arrow = left movement. */
-    prev=curr;
+    uint16_t prevX = playerX;
+    uint16_t prevY = playerY;
+
     if(! (PINC & _BV(PC2))){ /*left pressed*/
         if(playerX>10){
             playerX-=1;
-            curr.left-=1;
-            curr.right-=1;
+            redraw=1;
         }
         
     }
 
     if(! (PINC & _BV(PC4))){ /*right pressed*/
-        if(playerX<220){
+        if(playerX<210){
             playerX+=1;
-            curr.left+=1;
-            curr.right+=1;
+            redraw=1;
         }
         
     }
@@ -119,19 +116,26 @@ void movePlayer(){
     if(! (PINC & _BV(PC3))){ /*up pressed*/
         if(playerY>10){
             playerY-=1;
-            curr.top-=1;
-            curr.bottom-=1;
+            redraw=1;
         }
         
     }
 
     if(! (PINC & _BV(PC5))){ /*down pressed*/
-        if(playerY<300){
+        if(playerY<290){
             playerY+=1;
-            curr.top+=1;
-            curr.bottom+=1;
+            redraw=1;
         }
         
+    }
+    moveTurret(turretPos);
+    
+    if(redraw){
+        fill_rectangle((rectangle){prevX, prevX+playerSize,prevY,prevY+playerSize},BLACK);
+        fill_rectangle((rectangle){playerX, playerX+playerSize, playerY, playerY+playerSize}, playerColour);
+        fill_rectangle(turrRect, turretColour);
+
+        redraw=0;
     }
     _delay_ms(10);
 }
@@ -164,8 +168,10 @@ void moveTurret(uint8_t turretPos){
             turrRect.bottom = playerY + playerSize/2 +1 +2;
             break;
     }
+    redraw=1;
+
 }
-volatile uint8_t lastTime = 0;
+
 /*if switch pressed create bullet*/
 void createBullet(uint8_t turretPos){
     if(! (PINE & _BV(PE7)) && bullets[currentBullet].direction=='-'){ /*if switch pressed AND current bullet slot not in use*/
@@ -253,7 +259,7 @@ void moveBullets(){
             rectangle oldBulletPos = {bullets[i].oldXPos, bullets[i].oldXPos+3, bullets[i].oldYPos, bullets[i].oldYPos+3};
             
             fill_rectangle(oldBulletPos, BLACK);
-            if(bullets[i].direction!='-') fill_rectangle(currentBulletPos, RED);
+            if(bullets[i].direction!='-') fill_rectangle(currentBulletPos, bulletColour);
         }
     }
 }
