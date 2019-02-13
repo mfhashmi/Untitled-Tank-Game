@@ -26,7 +26,10 @@ volatile struct object bullets[maxBullets] = {{'-', 0, 0, 0, 0}, {'-', 0, 0, 0, 
 uint8_t redraw =1;
 volatile uint16_t delta;
 
-
+#define baseEnemySpeed 2
+#define trackingEnemySpeed 1
+volatile uint16_t score=0;
+volatile uint8_t lives=3;
 /*function definitions*/
 
 void movePlayer(void);
@@ -57,8 +60,8 @@ void init(){
  
     
 }
-uint8_t timerMatch=10;
-
+char buffer[8];
+uint8_t timerMatch=50;
 /*screen interrupt / main game loop*/
 ISR(INT6_vect){
     int8_t val = turretPos + enc_delta();
@@ -77,7 +80,11 @@ ISR(INT6_vect){
         moveEnemies();
         timerMatch=4;
     }
+    detectCollisions();
 
+    
+    sprintf(buffer, "%4d",score);
+    display_string_xy(buffer,10,300);
 }
 
 /*switch interrupt for creating bullets*/
@@ -104,9 +111,12 @@ void main(){
 
     /*loop keep game running*/
     /*TODO replace 1 with live system*/
-    while (1){
+    while (lives){
         
     }
+    cli();
+    clear_screen();
+    display_string_xy("You died!", 40, 160);
 
 }
 
@@ -355,6 +365,7 @@ void spawnEnemy(){
     }
 }
 
+
 void moveEnemies(){ 
     int i=0;
     for(i; i<maxEnemies; i++){
@@ -364,7 +375,7 @@ void moveEnemies(){
             switch (enemies[i].direction)
             {
                 case 'U':
-                    enemies[i].yPos-=2;
+                    enemies[i].yPos-=baseEnemySpeed;
                     if(enemies[i].yPos+enemySize<=0){
                         enemies[i].direction='-';
                         rectangle rect = {enemies[i].xPos, enemies[i].xPos+enemySize, enemies[i].yPos, enemies[i].yPos+enemySize};
@@ -373,7 +384,7 @@ void moveEnemies(){
                     }
                     break;
                 case 'L':
-                    enemies[i].xPos-=2;
+                    enemies[i].xPos-=baseEnemySpeed;
                     if(enemies[i].xPos+enemySize<=0){
                         enemies[i].direction='-';
                         rectangle rect = {enemies[i].xPos, enemies[i].xPos+enemySize, enemies[i].yPos, enemies[i].yPos+enemySize};
@@ -382,7 +393,7 @@ void moveEnemies(){
                     }
                     break;
                 case 'D':
-                    enemies[i].yPos+=2;
+                    enemies[i].yPos+=baseEnemySpeed;
                     if(enemies[i].yPos>=320){
                         enemies[i].direction='-';
                         rectangle rect = {enemies[i].xPos, enemies[i].xPos+enemySize, enemies[i].yPos, enemies[i].yPos+enemySize};
@@ -401,14 +412,14 @@ void moveEnemies(){
                     break;
                 case 'F':
                     if(enemies[i].xPos>playerX){
-                        enemies[i].xPos--;
+                        enemies[i].xPos-=trackingEnemySpeed;
                     }else if(enemies[i].xPos<playerX){
-                        enemies[i].xPos++;
+                        enemies[i].xPos+=trackingEnemySpeed;
                     }
                     if(enemies[i].yPos>playerY){
-                        enemies[i].yPos--;
+                        enemies[i].yPos-=trackingEnemySpeed;
                     }else if(enemies[i].yPos<playerY){
-                        enemies[i].yPos++;
+                        enemies[i].yPos+=trackingEnemySpeed;
                     }
             }
             rectangle currentEnemyPos = {enemies[i].xPos, enemies[i].xPos+enemySize, enemies[i].yPos, enemies[i].yPos+enemySize};
@@ -416,6 +427,39 @@ void moveEnemies(){
             
             fill_rectangle(oldEnemyPos, BLACK);
             if(enemies[i].direction!='-') fill_rectangle(currentEnemyPos, WHITE);
+        }
+    }
+}
+
+void detectCollisions(){
+    uint8_t e = 0;
+    uint8_t b=0;
+    for(e; e<maxEnemies; e++){
+        if(enemies[e].direction!='-'){
+            /*check if enemy hit player*/
+            if((playerX<=enemies[e].xPos && playerX+playerSize>=enemies[e].xPos) || (playerX<=enemies[e].xPos+enemySize && playerX+playerSize>=enemies[e].xPos+enemySize)){
+                if((playerY<=enemies[e].yPos && playerY+playerSize>=enemies[e].yPos) || (playerY<=enemies[e].yPos+enemySize && playerY+playerSize>=enemies[e].yPos+enemySize)){
+                    enemies[e].direction='-';
+                    lives--;
+                    fill_rectangle((rectangle){enemies[e].xPos, enemies[e].xPos+enemySize, enemies[e].yPos, enemies[e].yPos+enemySize}, BLACK);
+                    enemiesOnScreen--;
+                }
+            }
+            /*check if bullet hit enemy*/
+            for(b=0; b<maxBullets; b++){
+                if(bullets[b].direction!='-'){
+                    if((enemies[e].xPos<=bullets[b].xPos && enemies[e].xPos+enemySize>=bullets[b].xPos) || (enemies[e].xPos<=bullets[b].xPos+3 && enemies[e].xPos+enemySize>=bullets[b].xPos+3)){
+                        if((enemies[e].yPos<=bullets[b].yPos && enemies[e].yPos+enemySize>=bullets[b].yPos) || (enemies[e].yPos<=bullets[b].yPos+3 && enemies[e].yPos+enemySize>=bullets[b].yPos+3)){
+                            enemies[e].direction='-';
+                            bullets[b].direction='-';
+                            score+=10;
+                            fill_rectangle((rectangle){enemies[e].xPos, enemies[e].xPos+enemySize, enemies[e].yPos, enemies[e].yPos+enemySize}, BLACK);
+                            fill_rectangle((rectangle){bullets[b].xPos, bullets[b].xPos+3, bullets[b].yPos, bullets[b].yPos+3}, BLACK);
+                            enemiesOnScreen--;
+                        }
+                    }
+                }        
+            }
         }
     }
 }
