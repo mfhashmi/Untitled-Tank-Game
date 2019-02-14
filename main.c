@@ -20,15 +20,15 @@ volatile uint16_t playerX = 100; /*player starting x and y pos*/
 #define playerSize 17
 volatile uint8_t turretPos = 0; /*starting turret direction (up)*/
 volatile rectangle turrRect;
-#define maxBullets 3
+volatile uint8_t maxBullets = 1;
 volatile uint8_t currentBullet = 0;
-volatile struct object bullets[maxBullets] = {{'-', 0, 0, 0, 0}, {'-', 0, 0, 0, 0}, {'-', 0, 0, 0, 0}};
+volatile struct object bullets[3] = {{'-', 0, 0, 0, 0}, {'-', 0, 0, 0, 0}, {'-', 0, 0, 0, 0}};
 uint8_t redraw =1;
 volatile uint16_t delta;
 
 #define baseEnemySpeed 2
 #define trackingEnemySpeed 1
-volatile uint16_t score=0;
+volatile uint8_t score=0;
 volatile uint8_t lives=3;
 /*function definitions*/
 
@@ -60,8 +60,8 @@ void init(){
  
     
 }
-char buffer[8];
-uint8_t timerMatch=50;
+
+uint8_t timerMatch=100;
 /*screen interrupt / main game loop*/
 ISR(INT6_vect){
     int8_t val = turretPos + enc_delta();
@@ -82,9 +82,14 @@ ISR(INT6_vect){
     }
     detectCollisions();
 
+    char buffer[4];
+    sprintf(buffer, "%03d",score);
+    display_string_xy(buffer,7,311);
+
+    char buffer2[2];
+    sprintf(buffer2, "%02d",lives);
+    display_string_xy(buffer2,227,311);
     
-    sprintf(buffer, "%4d",score);
-    display_string_xy(buffer,10,300);
 }
 
 /*switch interrupt for creating bullets*/
@@ -102,7 +107,7 @@ void main(){
     display_string_xy("Press switch to start.",40,160);
     while(PINE & _BV(PE7)){
     }
-    srand(TCNT0); /*seeding rng with counter value (happens when user presses button so slightly more random)*/
+    srand(TCNT0); /*seeding rng with counter value (happens when user presses button to start so slightly more random)*/
     clear_screen();
     _delay_ms(500);
     sei();
@@ -111,12 +116,15 @@ void main(){
 
     /*loop keep game running*/
     /*TODO replace 1 with live system*/
+    
     while (lives){
         
     }
     cli();
     clear_screen();
-    display_string_xy("You died!", 40, 160);
+    display_string_xy("You died!", 100, 155);
+    display_string_xy("Press switch to restart. NYI", 60,165); 
+
 
 }
 
@@ -452,7 +460,7 @@ void detectCollisions(){
                         if((enemies[e].yPos<=bullets[b].yPos && enemies[e].yPos+enemySize>=bullets[b].yPos) || (enemies[e].yPos<=bullets[b].yPos+3 && enemies[e].yPos+enemySize>=bullets[b].yPos+3)){
                             enemies[e].direction='-';
                             bullets[b].direction='-';
-                            score+=10;
+                            score++;
                             fill_rectangle((rectangle){enemies[e].xPos, enemies[e].xPos+enemySize, enemies[e].yPos, enemies[e].yPos+enemySize}, BLACK);
                             fill_rectangle((rectangle){bullets[b].xPos, bullets[b].xPos+3, bullets[b].yPos, bullets[b].yPos+3}, BLACK);
                             enemiesOnScreen--;
