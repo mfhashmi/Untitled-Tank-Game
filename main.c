@@ -15,21 +15,27 @@ struct object{
     int16_t yPos, oldYPos;
 };
 
-volatile uint16_t playerY = 150;
-volatile uint16_t playerX = 100; /*player starting x and y pos*/
+volatile uint16_t playerY;
+volatile uint16_t playerX; /*player starting x and y pos*/
 #define playerSize 17
-volatile uint8_t turretPos = 0; /*starting turret direction (up)*/
+volatile uint8_t turretPos; /*starting turret direction (up)*/
 volatile rectangle turrRect;
-volatile uint8_t maxBullets = 1;
-volatile uint8_t currentBullet = 0;
+volatile uint8_t maxBullets;
+volatile uint8_t currentBullet;
 volatile struct object bullets[3] = {{'-', 0, 0, 0, 0}, {'-', 0, 0, 0, 0}, {'-', 0, 0, 0, 0}};
-uint8_t redraw =1;
+uint8_t redraw;
 volatile uint16_t delta;
 
 #define baseEnemySpeed 2
 #define trackingEnemySpeed 1
 volatile uint8_t score=0;
 volatile uint8_t lives=3;
+
+uint8_t enemiesOnScreen;
+#define maxEnemies 4
+#define enemySize 11
+volatile struct object enemies[maxEnemies] = {{'-', 0, 0, 0, 0},{'-', 0, 0, 0, 0},{'-', 0, 0, 0, 0},{'-', 0, 0, 0, 0}};
+
 /*function definitions*/
 
 void movePlayer(void);
@@ -54,14 +60,33 @@ void init(){
     
 
     TCCR0A = _BV(WGM01); /*set to clear timer on match mode*/
-    TCCR0B = 0x03; /*enable clock with clkIO/64 prescaling setting*/
-    OCR0A = 0x7C; /*set timer a compare value to 124 (when timer hits 124, interrupt is fired)*/
+    TCCR0B = _BV(CS00) | _BV(CS01); /*enable clock with clkIO/64 prescaling setting*/
+    OCR0A = (uint8_t) (F_CPU / (64 * 1000) -1); /*set timer a compare value fire interrupt every 1ms (1000Hz)*/
     TIMSK0 =  _BV(OCIE0A); /*enable timer interrupt (0x02 or 0b00000010)*/
  
     
 }
 
-uint8_t timerMatch=100;
+void initVars(){
+    playerY=150;
+    playerX=100;
+    turretPos=0;
+    maxBullets=1;
+    currentBullet=0;
+    uint8_t i;
+    for(i=0; i<3; i++){
+        bullets[i].direction='-';
+    }
+    for(i=0; i<maxEnemies; i++){
+        enemies[i].direction='-';
+    }
+    enemiesOnScreen=0;
+    score=0;
+    lives=3;
+    redraw=1;
+}
+
+uint8_t enemySpeedFactor=100;
 /*screen interrupt / main game loop*/
 ISR(INT6_vect){
     int8_t val = turretPos + enc_delta();
@@ -73,12 +98,12 @@ ISR(INT6_vect){
 
     moveBullets();
 
-    if(timerMatch){
-        timerMatch--;
+    if(enemySpeedFactor){
+        enemySpeedFactor--;
     }else{
         spawnEnemy();
         moveEnemies();
-        timerMatch=4;
+        enemySpeedFactor=1;
     }
     detectCollisions();
 
@@ -108,22 +133,31 @@ void main(){
     while(PINE & _BV(PE7)){
     }
     srand(TCNT0); /*seeding rng with counter value (happens when user presses button to start so slightly more random)*/
-    clear_screen();
-    _delay_ms(500);
-    sei();
+    
 
     /*set_frame_rate_hz(61);*/
 
     /*loop keep game running*/
     /*TODO replace 1 with live system*/
-    
-    while (lives){
-        
+    while(1){
+        clear_screen();
+        initVars();
+        _delay_ms(500);
+        sei();
+        while (lives){
+            
+        }
+        cli();
+        clear_screen();
+        display_string_xy("You died!", 100, 155);
+        display_string_xy("Press switch to restart.", 55,165);
+        char buffer1[11];
+        sprintf(buffer1, "Score: %03d", score);
+        display_string_xy(buffer1, 95, 175);
+        _delay_ms(500);
+        while(PINE & _BV(PE7)){
+        } 
     }
-    cli();
-    clear_screen();
-    display_string_xy("You died!", 100, 155);
-    display_string_xy("Press switch to restart. NYI", 60,165); 
 
 
 }
@@ -168,12 +202,14 @@ void movePlayer(){
     moveTurret(turretPos);
     
     if(redraw){
+        cli();
         fill_rectangle((rectangle){prevX, prevX+playerSize,prevY,prevY+playerSize},BLACK);
         fill_rectangle((rectangle){playerX, playerX+playerSize, playerY, playerY+playerSize}, playerColour);
         fill_rectangle(turrRect, turretColour);
-
         redraw=0;
+        sei();
     }
+
     _delay_ms(10);
 }
 
@@ -255,6 +291,7 @@ void moveBullets(){
     int i=0;
     for(i; i<maxBullets; i++){
         if(bullets[i].direction!='-'){
+            /*cli();*/
             bullets[i].oldXPos=bullets[i].xPos;
             bullets[i].oldYPos=bullets[i].yPos;
             switch (bullets[i].direction)
@@ -297,15 +334,10 @@ void moveBullets(){
             
             fill_rectangle(oldBulletPos, BLACK);
             if(bullets[i].direction!='-') fill_rectangle(currentBulletPos, bulletColour);
+            /*sei();*/
         }
     }
 }
-
-uint8_t enemiesOnScreen=0;
-#define maxEnemies 3
-#define enemySize 11
-
-volatile struct object enemies[maxEnemies] = {{'-', 0, 0, 0, 0},{'-', 0, 0, 0, 0},{'-', 0, 0, 0, 0}};
 
 /*Spawn new enemy if there are fewer than max enemies on screen atm*/
 void spawnEnemy(){
@@ -373,13 +405,14 @@ void spawnEnemy(){
     }
 }
 
-
+/*Moves and draws all enemies on screen*/
 void moveEnemies(){ 
     int i=0;
     for(i; i<maxEnemies; i++){
         if(enemies[i].direction!='-'){
             enemies[i].oldXPos=enemies[i].xPos;
             enemies[i].oldYPos=enemies[i].yPos;
+            cli();
             switch (enemies[i].direction)
             {
                 case 'U':
@@ -435,6 +468,7 @@ void moveEnemies(){
             
             fill_rectangle(oldEnemyPos, BLACK);
             if(enemies[i].direction!='-') fill_rectangle(currentEnemyPos, WHITE);
+            sei();
         }
     }
 }
