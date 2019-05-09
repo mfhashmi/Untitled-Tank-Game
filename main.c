@@ -16,9 +16,9 @@ struct object{
 };
 
 volatile uint16_t playerY;
-volatile uint16_t playerX; /*player starting x and y pos*/
+volatile uint16_t playerX;
 #define playerSize 17
-volatile uint8_t turretPos; /*starting turret direction (up)*/
+volatile uint8_t turretPos;
 volatile rectangle turrRect;
 volatile uint8_t maxBullets;
 volatile uint8_t currentBullet;
@@ -55,8 +55,8 @@ void init(){
 
     PORTC = _BV(PC5) | _BV(PC4) | _BV(PC3) | _BV(PC2); /*pull up port c pins 5,4,3,2 (w,s,e,n buttons)*/
     
-    EIMSK = _BV(PE7) | /*_BV(PE4) | */_BV(INT6); /*enable external interrupt mask bit for pin e 7 (switch)*/
-    EICRB = _BV(ISC70) | /*_BV(ISC40) | */_BV(ISC60); /*enable external level interrupt pin e 7 (switch)*/
+    EIMSK = _BV(PE7) | _BV(INT6); /*enable external interrupt mask bit for pin e 7 (switch)*/
+    EICRB = _BV(ISC70) | _BV(ISC60); /*enable external level interrupt pin e 7 (switch)*/
     
 
     TCCR0A = _BV(WGM01); /*set to clear timer on match mode*/
@@ -70,8 +70,8 @@ void init(){
 void initVars(){
     playerY=150;
     playerX=100;
-    turretPos=0;
-    maxBullets=1;
+    turretPos=0; /*turret starts facing up*/
+    maxBullets=1; /*max num of bullets on screen at a time*/
     currentBullet=0;
     uint8_t i;
     for(i=0; i<3; i++){
@@ -127,9 +127,28 @@ void main(){
     
     init();
     init_lcd();
+
+    while(1){
     /*Start menu goes here*/
-    display_string("Start menu test.");
-    display_string_xy("Press switch to start.",40,160);
+    display_string_xy("Untitled Tank Game", 70, 0);
+    display_string_xy("Controls:",5,20);
+    display_string_xy("Use arrow buttons to move tank",7,30);
+    display_string_xy("Rotate rotary encoder to rotate barrel",7,40);
+    display_string_xy("Press middle switch to fire a bullet",7,50);
+    display_string_xy("There can only be one bullet on screen",7,60);
+    
+    display_string_xy("Aim:",5,80);
+    display_string_xy("+1 point per enemy destroyed",7,90);
+    display_string_xy("-1 life per enemy reaching you",7,100);
+    display_string_xy("Score is in the bottom left",7,110);
+    display_string_xy("Lives are in the bottom right.",7,120);
+    
+    display_string_xy("Enemy Types:",5,140);
+    display_string_xy("1. Enemy moves horizontally",7,150);
+    display_string_xy("2. Enemy moves vertically",7,160);
+    display_string_xy("3. Enemy follows player",7,170);
+
+    display_string_xy("Press middle switch to start.",40,200);
     while(PINE & _BV(PE7)){
     }
     srand(TCNT0); /*seeding rng with counter value (happens when user presses button to start so slightly more random)*/
@@ -138,8 +157,8 @@ void main(){
     /*set_frame_rate_hz(61);*/
 
     /*loop keep game running*/
-    /*TODO replace 1 with live system*/
-    while(1){
+    uint8_t count = 0;
+    while(count<10){
         clear_screen();
         initVars();
         _delay_ms(500);
@@ -156,7 +175,14 @@ void main(){
         display_string_xy(buffer1, 95, 175);
         _delay_ms(500);
         while(PINE & _BV(PE7)){
+            _delay_ms(1000);
+            count++;    /*resets game to start screen if left on game over screen for 10 seconds*/
+            if(count==10){
+                clear_screen();
+                break;
+            }
         } 
+    }
     }
 
 
@@ -291,7 +317,6 @@ void moveBullets(){
     int i=0;
     for(i; i<maxBullets; i++){
         if(bullets[i].direction!='-'){
-            /*cli();*/
             bullets[i].oldXPos=bullets[i].xPos;
             bullets[i].oldYPos=bullets[i].yPos;
             switch (bullets[i].direction)
@@ -334,7 +359,6 @@ void moveBullets(){
             
             fill_rectangle(oldBulletPos, BLACK);
             if(bullets[i].direction!='-') fill_rectangle(currentBulletPos, bulletColour);
-            /*sei();*/
         }
     }
 }
