@@ -1,10 +1,10 @@
 Untitled Tank Game.
 
 Controls:
-Use arrow buttons to move tank
-Rotate rotary encoder to rotate barrel
-Press middle switch to fire a bullet
-There can only be one bullet on screen
+Use arrow buttons to move tank.
+Rotate rotary encoder to rotate barrel.
+Press middle switch to fire a bullet.
+There can only be one bullet on screen.
 
 Aim:
 Destroy the enemies without letting them hit you.
@@ -13,9 +13,9 @@ Destroy the enemies without letting them hit you.
 You start with 3 lives.
 
 Enemy Types:
-1. Enemy moves horizontally
-2. Enemy moves vertically
-3. Enemy follows player (This type of enemy moves slower than the others)
+1. Enemy moves horizontally.
+2. Enemy moves vertically.
+3. Enemy follows player (This type of enemy moves slower than the others).
 
 --TODO--
 Powerups:
